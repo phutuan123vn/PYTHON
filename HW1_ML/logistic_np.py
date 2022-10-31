@@ -31,7 +31,8 @@ class LogisticClassifier(object):
         # [TODO 1.5]
         # Compute feedforward result
 
-        result = 0
+        z = x@self.w
+        result=1/(1+np.exp(-z))
         return result
 
     def compute_loss(self, y, y_hat):
@@ -45,9 +46,9 @@ class LogisticClassifier(object):
         """
         # [TODO 1.6]
         # Compute loss value (a single number)
-
-        loss = 0
-        # print(loss.shape)
+        a=np.nan_to_num(y*np.log(y_hat))
+        b=np.nan_to_num((1-y)*np.log(1-y_hat))
+        loss=-1*np.mean(a+b)
         return loss
 
     def get_grad(self, x, y, y_hat):
@@ -61,8 +62,7 @@ class LogisticClassifier(object):
         """
         # [TODO 1.7]
         # Compute the gradient matrix of w, it has the same size of w
-
-        w_grad = 0
+        w_grad = np.dot(x.T,(y_hat-y))/x.shape[0]
         return w_grad
 
     def update_weight(self, grad, learning_rate):
@@ -75,7 +75,7 @@ class LogisticClassifier(object):
         # [TODO 1.8]
         # Update w using SGD
 
-        self.w = 0
+        self.w -= learning_rate*grad
 
     def update_weight_momentum(self, grad, learning_rate, momentum, momentum_rate):
         """update_weight with momentum
@@ -88,8 +88,9 @@ class LogisticClassifier(object):
         """
         # [TODO 1.9]
         # Update w using SGD with momentum
-
-        self.w = 0
+        momentum=momentum*momentum_rate+learning_rate*grad
+        self.w = self.w-momentum
+        return momentum
 
 
 def plot_loss(all_loss):
@@ -125,8 +126,10 @@ def normalize_all_pixel(train_x, test_x):
     """
     # [TODO 1.2]
     # train_mean and train_std should have the shape of (1, image_height, image_width)
-    train_x = 0
-    test_x = 0
+    meantrain_x=np.mean(train_x)
+    meantest_x=np.mean(test_x)
+    train_x = (train_x-meantrain_x)/np.std(train_x)
+    test_x = (test_x-meantest_x)/np.std(test_x)
 
     return train_x, test_x
 
@@ -136,7 +139,7 @@ def reshape2D(tensor):
     Reshape our 3D tensors to 2D. A 3D tensor of shape (num_samples, image_height, image_width) must be reshaped into (num_samples, image_height*image_width)
     """
     # [TODO 1.3]
-    tensor = 0
+    tensor=tensor.reshape(tensor.shape[0],tensor.shape[1]*tensor.shape[2])
 
     return tensor
 
@@ -148,7 +151,7 @@ def add_one(x):
     :param x: input data
     """
     # [TODO 1.4]
-    x = 0
+    x=np.hstack((np.ones((x.shape[0],1)),x))
 
     return x
 
@@ -164,10 +167,16 @@ def test(y_hat, test_y):
     # [TODO 1.10]
     # Compute test scores using test_y and y_hat
     #precision = TP/(TP+FP)
-    precision = 0
-    #recall = TP/P
-    recall = 0
-    f1 = 0
+    y_hat=np.around(y_hat)
+    tp=fp=0
+    tp=np.sum((y_hat==1)&(test_y==1))
+    fp=np.sum((y_hat==1)&(test_y==0))
+    precision = tp/(tp+fp)
+    #recall = tp/P
+    p=np.count_nonzero(test_y)
+    recall=tp/p
+
+    f1 = 2*(precision*recall)/(precision+recall)
     print("Precision: %.3f" % precision)
     print("Recall: %.3f" % recall)
     print("F1-score: %.3f" % f1)
@@ -235,8 +244,8 @@ if __name__ == "__main__":
     #generate_unit_testcase(train_x.copy(), train_y.copy())
 
     # Normalize our data: choose one of the two methods before training
-    #train_x, test_x = normalize_all_pixel(train_x, test_x)
-    train_x, test_x = normalize_per_pixel(train_x, test_x)
+    train_x, test_x = normalize_all_pixel(train_x, test_x)
+    # train_x, test_x = normalize_per_pixel(train_x, test_x)
 
     # Reshape our data
     # train_x: shape=(2400, 64, 64) -> shape=(2400, 64*64)
@@ -260,16 +269,14 @@ if __name__ == "__main__":
     epochs_to_draw = 100
     all_loss = []
     plt.ion()
-    tic = time.clock()
     for e in range(num_epoch):
-        tic = time.clock()
         y_hat = bin_classifier.feed_forward(train_x)
         loss = bin_classifier.compute_loss(train_y, y_hat)
         grad = bin_classifier.get_grad(train_x, train_y, y_hat)
 
         # Updating weight: choose either normal SGD or SGD with momentum
         #bin_classifier.update_weight(grad, learning_rate)
-        bin_classifier.update_weight_momentum(
+        momentum=bin_classifier.update_weight_momentum(
             grad, learning_rate, momentum, momentum_rate)
 
         all_loss.append(loss)
@@ -279,8 +286,6 @@ if __name__ == "__main__":
             plt.show()
             plt.pause(0.1)
             print("Epoch %d: loss is %.5f" % (e+1, loss))
-        toc = time.clock()
-        print(toc-tic)
 
     y_hat = bin_classifier.feed_forward(test_x)
     test(y_hat, test_y)
